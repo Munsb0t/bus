@@ -1,0 +1,968 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BusTrack — Student · Mobile preview</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ["Inter", "system-ui", "sans-serif"] },
+        colors: {
+          brand: { 50:"#eef4ff",100:"#dae6ff",200:"#bdd2ff",300:"#90b4ff",400:"#5b8bff",500:"#356bff",600:"#1f4ff0",700:"#193dd1",800:"#1a35a9",900:"#1b3285" },
+          ink: { 900:"#0f172a",700:"#334155",600:"#475569",500:"#4b5667",400:"#6a778c" },
+          surface: { DEFAULT:"#ffffff", muted:"#dde4ed", page:"#e6eaf1" },
+          success: { 50:"#ecfdf3",100:"#d1fadf",400:"#4ade80",500:"#16a34a",600:"#15803d",700:"#166534" },
+          warning: { 50:"#fff7ed",100:"#ffedd5",500:"#f59e0b",600:"#ea580c",700:"#c2410c" },
+          danger:  { 50:"#fef2f2",100:"#fee2e2",200:"#fecaca",500:"#ef4444",600:"#dc2626",700:"#b91c1c" },
+        },
+        fontSize: {
+          "page-title": ["1.75rem", { lineHeight:"2.125rem", fontWeight:"700" }],
+          "section-title": ["1.25rem", { lineHeight:"1.75rem", fontWeight:"700" }],
+          "card-title": ["1.0625rem", { lineHeight:"1.5rem", fontWeight:"600" }],
+          body: ["0.9375rem", { lineHeight:"1.4rem" }],
+          small: ["0.8125rem", { lineHeight:"1.1rem" }],
+        },
+        maxWidth: { app: "430px" },
+        boxShadow: {
+          card: "0 1px 2px rgba(15,23,42,0.14), 0 6px 18px rgba(15,23,42,0.16)",
+          nav: "0 -1px 0 rgba(15,23,42,0.12), 0 -10px 26px rgba(15,23,42,0.12)",
+        },
+      },
+    },
+  };
+</script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  body { font-family: Inter, system-ui, sans-serif; }
+  @keyframes pulse-ring { 0%{transform:scale(.9);opacity:.7} 70%{transform:scale(1.8);opacity:0} 100%{transform:scale(1.8);opacity:0} }
+  @keyframes fade-in { 0%{opacity:0;transform:translateY(4px)} 100%{opacity:1;transform:translateY(0)} }
+  @keyframes sheet-up { 0%{transform:translateY(100%)} 100%{transform:translateY(0)} }
+  .animate-pulse-ring { animation: pulse-ring 1.8s cubic-bezier(.4,0,.6,1) infinite; }
+  .animate-fade-in { animation: fade-in .25s ease-out both; }
+  .animate-sheet-up { animation: sheet-up .28s cubic-bezier(.16,1,.3,1) both; }
+  .no-scrollbar::-webkit-scrollbar { display:none; }
+  .no-scrollbar { -ms-overflow-style:none; scrollbar-width:none; }
+  /* hide the native search clear so our own clear button is the only one */
+  input[type="search"]::-webkit-search-cancel-button { -webkit-appearance:none; }
+</style>
+</head>
+<body class="min-h-screen bg-[radial-gradient(circle_at_30%_10%,#e9edf5,transparent_60%),radial-gradient(circle_at_80%_90%,#e7ecfb,transparent_55%)] bg-slate-200 antialiased">
+
+  <div class="mx-auto flex max-w-5xl flex-col items-center px-4 py-8">
+    <!-- Caption / controls -->
+    <div class="mb-6 flex w-full max-w-sm flex-col items-center gap-3 text-center">
+      <h1 class="text-2xl font-bold text-slate-800">BusTrack — Student app</h1>
+      <p class="text-sm text-slate-500">Interactive mobile preview. Tap a route to track it, switch tabs at the bottom, filter notices, and pick your stop.</p>
+      <button id="offlineToggle" data-action="toggle-online"
+        class="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-300 shadow-sm hover:bg-slate-50 active:scale-95 transition">
+        Simulate going offline
+      </button>
+    </div>
+
+    <!-- Phone -->
+    <div class="relative">
+      <div class="rounded-[3.4rem] bg-[#0b0b10] p-[14px] shadow-[0_30px_60px_-20px_rgba(15,23,42,.55),0_0_0_2px_rgba(255,255,255,.06)_inset]">
+        <div class="relative h-[844px] w-[390px] overflow-hidden rounded-[2.6rem] bg-surface-page">
+          <!-- Dynamic island -->
+          <div class="pointer-events-none absolute left-1/2 top-2 z-50 h-7 w-28 -translate-x-1/2 rounded-full bg-black"></div>
+          <div id="device" class="flex h-full w-full flex-col"></div>
+        </div>
+      </div>
+      <!-- side buttons -->
+      <div class="absolute -left-[3px] top-40 h-16 w-[3px] rounded-l bg-[#0b0b10]"></div>
+      <div class="absolute -left-[3px] top-60 h-16 w-[3px] rounded-l bg-[#0b0b10]"></div>
+      <div class="absolute -right-[3px] top-52 h-24 w-[3px] rounded-r bg-[#0b0b10]"></div>
+    </div>
+  </div>
+
+<script>
+//=============================================================================
+// Icons (inline SVG, Lucide-style) — keeps the preview self-contained.
+//=============================================================================
+const P = {
+  bus: '<rect x="3" y="4" width="18" height="13" rx="2.5"/><line x1="3" y1="10.5" x2="21" y2="10.5"/><line x1="7" y1="17" x2="7" y2="19.5"/><line x1="17" y1="17" x2="17" y2="19.5"/><circle cx="7.5" cy="13.7" r=".4"/><circle cx="16.5" cy="13.7" r=".4"/>',
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  bellOff: '<path d="M8.7 3.6A6 6 0 0 1 18 8c0 3 .8 5 1.7 6.4"/><path d="M17 17H3s3-2 3-9c0-.6.1-1.2.2-1.7"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><line x1="2" y1="2" x2="22" y2="22"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
+  mapPin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+  mapPinned: '<path d="M18 8c0 4-6 13-6 13S6 12 6 8a6 6 0 0 1 12 0Z"/><circle cx="12" cy="8" r="2"/>',
+  arrowRight: '<line x1="5" y1="12" x2="19" y2="12"/><path d="M13 6l6 6-6 6"/>',
+  calendarClock: '<rect x="3" y="4.5" width="18" height="16.5" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/>',
+  flag: '<path d="M4 22V3"/><path d="M4 3.5h13l-2 4 2 4H4"/>',
+  home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',
+  route: '<circle cx="6" cy="19" r="2.4"/><circle cx="18" cy="5" r="2.4"/><path d="M8.4 19H14a4 4 0 0 0 0-8h-4a4 4 0 0 1 0-8h5.4"/>',
+  check: '<path d="M4 12.5l4.5 4.5L20 6"/>',
+  checkCircle: '<circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.6 2.6L16 9.3"/>',
+  circleSlash: '<circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/>',
+  alertTriangle: '<path d="M12 3.2l9.5 16.3a1 1 0 0 1-.9 1.5H3.4a1 1 0 0 1-.9-1.5L12 3.2Z"/><line x1="12" y1="9.5" x2="12" y2="14"/><line x1="12" y1="17.3" x2="12" y2="17.3"/>',
+  wifiOff: '<line x1="2" y1="2" x2="22" y2="22"/><path d="M5 12.6a11 11 0 0 1 5-2.4"/><path d="M19 12.6a11 11 0 0 0-4-2.2"/><path d="M8.6 16.1a6 6 0 0 1 6.8 0"/><line x1="12" y1="20" x2="12" y2="20"/>',
+  info: '<circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><line x1="12" y1="7.8" x2="12" y2="7.8"/>',
+  chevronLeft: '<path d="M15 6l-6 6 6 6"/>',
+  search: '<circle cx="11" cy="11" r="7"/><line x1="16.2" y1="16.2" x2="21" y2="21"/>',
+  searchX: '<circle cx="11" cy="11" r="7"/><line x1="16.2" y1="16.2" x2="21" y2="21"/><line x1="9" y1="9" x2="13" y2="13"/><line x1="13" y1="9" x2="9" y2="13"/>',
+  x: '<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>',
+  radio: '<circle cx="12" cy="12" r="2"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 16.2a6 6 0 0 0 0-8.4M5 5a10 10 0 0 0 0 14M19 19a10 10 0 0 0 0-14"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/>',
+  lock: '<rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>',
+  eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5 12 13l8.5-6.5"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><line x1="21" y1="12" x2="9" y2="12"/>',
+};
+function ic(name, cls){
+  cls = cls || 'h-5 w-5';
+  return '<svg class="'+cls+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(P[name]||'')+'</svg>';
+}
+
+//=============================================================================
+// Data  (ported 1:1 from src/lib/mock-data.ts)
+//=============================================================================
+const ROUTES = [
+  { id:"route-1", name:"Route 1", startPoint:"Oxygen", endPoint:"Campus", scheduledStart:"7:15 AM",
+    stops:[{id:"r1-s1",name:"Oxygen",order:1,avg:0},{id:"r1-s2",name:"2 No Gate",order:2,avg:12},{id:"r1-s3",name:"Bayezid",order:3,avg:10},{id:"r1-s4",name:"University Gate",order:4,avg:15},{id:"r1-s5",name:"Campus",order:5,avg:5}] },
+  { id:"route-2", name:"Route 2", startPoint:"GEC", endPoint:"Campus", scheduledStart:"7:20 AM",
+    stops:[{id:"r2-s1",name:"GEC",order:1,avg:0},{id:"r2-s2",name:"Muradpur",order:2,avg:10},{id:"r2-s3",name:"2 No Gate",order:3,avg:8},{id:"r2-s4",name:"Bayezid",order:4,avg:12},{id:"r2-s5",name:"Campus",order:5,avg:15}] },
+  { id:"route-3", name:"Route 3", startPoint:"Agrabad", endPoint:"Campus", scheduledStart:"7:30 AM",
+    stops:[{id:"r3-s1",name:"Agrabad",order:1,avg:0},{id:"r3-s2",name:"Dewanhat",order:2,avg:12},{id:"r3-s3",name:"GEC",order:3,avg:15},{id:"r3-s4",name:"Muradpur",order:4,avg:10},{id:"r3-s5",name:"Campus",order:5,avg:25}] },
+  { id:"route-4", name:"Route 4", startPoint:"Chawkbazar", endPoint:"Campus", scheduledStart:"7:25 AM",
+    stops:[{id:"r4-s1",name:"Chawkbazar",order:1,avg:0},{id:"r4-s2",name:"Anderkilla",order:2,avg:8},{id:"r4-s3",name:"GEC",order:3,avg:14},{id:"r4-s4",name:"Muradpur",order:4,avg:10},{id:"r4-s5",name:"Campus",order:5,avg:25}] },
+  { id:"route-5", name:"Route 5", startPoint:"Patenga", endPoint:"Campus", scheduledStart:"7:00 AM",
+    stops:[{id:"r5-s1",name:"Patenga",order:1,avg:0},{id:"r5-s2",name:"EPZ",order:2,avg:10},{id:"r5-s3",name:"Agrabad",order:3,avg:12},{id:"r5-s4",name:"GEC",order:4,avg:15},{id:"r5-s5",name:"Campus",order:5,avg:22}] },
+  { id:"route-6", name:"Route 6", startPoint:"Halishahar", endPoint:"Campus", scheduledStart:"6:50 AM",
+    stops:[{id:"r6-s1",name:"Halishahar",order:1,avg:0},{id:"r6-s2",name:"Boropol",order:2,avg:8},{id:"r6-s3",name:"Agrabad",order:3,avg:10},{id:"r6-s4",name:"GEC",order:4,avg:14},{id:"r6-s5",name:"Campus",order:5,avg:22}] },
+];
+const BUSES = [
+  { name:"Bus 01", routeId:"route-1", currentStatus:"active",      lastCheckpointName:"2 No Gate", lastCheckpointOrder:2, lastUpdatedMin:4,  delayMinutes:0,  issueMessage:null },
+  { name:"Bus 04", routeId:"route-2", currentStatus:"delayed",     lastCheckpointName:"Muradpur",  lastCheckpointOrder:2, lastUpdatedMin:3,  delayMinutes:10, issueMessage:"Traffic congestion near Muradpur." },
+  { name:"Bus 03", routeId:"route-3", currentStatus:"not_started", lastCheckpointName:null,        lastCheckpointOrder:0, lastUpdatedMin:null, delayMinutes:0, issueMessage:null },
+  { name:"Bus 02", routeId:"route-4", currentStatus:"cancelled",   lastCheckpointName:null,        lastCheckpointOrder:0, lastUpdatedMin:55, delayMinutes:0,  issueMessage:"Bus maintenance" },
+  { name:"Bus 05", routeId:"route-5", currentStatus:"active",      lastCheckpointName:"Agrabad",   lastCheckpointOrder:3, lastUpdatedMin:6,  delayMinutes:0,  issueMessage:null },
+  { name:"Bus 06", routeId:"route-6", currentStatus:"completed",   lastCheckpointName:"Campus",    lastCheckpointOrder:5, lastUpdatedMin:34, delayMinutes:0,  issueMessage:null },
+];
+// checkpoint times per route (order -> minutes ago) for the timeline "Reached HH:MM"
+const REACHED = {
+  "route-1": {1:16, 2:4},
+  "route-2": {1:23, 2:3},
+  "route-5": {1:28, 2:17, 3:6},
+  "route-6": {1:90, 2:80, 3:68, 4:50, 5:34},
+};
+const NOTICES = [
+  { id:"notice-1", title:"Route 2 running late", message:"Traffic near Muradpur. Expected delay of about 10 minutes.", routeId:"route-2", priority:"delay", createdMin:10, expiresMin:null },
+  { id:"notice-2", title:"Heavy rain advisory", message:"Roads waterlogged near Muradpur and GEC. Some buses may run late — please plan extra time.", routeId:"all", priority:"emergency", createdMin:25, expiresMin:null },
+  { id:"notice-3", title:"Route 4 cancelled today", message:"Bus under maintenance. Regular service resumes tomorrow morning.", routeId:"route-4", priority:"cancelled", createdMin:55, expiresMin:null },
+  { id:"notice-4", title:"Extra evening buses this week", message:"During exam week, additional buses depart Campus at 6:30 PM and 8:00 PM on all routes.", routeId:"all", priority:"normal", createdMin:180, expiresMin:-(3*24*60) },
+];
+
+//=============================================================================
+// Helpers  (ported from src/lib/{format,eta,status,data}.ts)
+//=============================================================================
+const NOW = Date.now();
+const ms = (min) => (min==null ? null : NOW - min*60000);
+function formatRelativeTime(t){ if(t==null) return "—"; const d=Math.round((Date.now()-t)/60000);
+  if(d<1) return "Just now"; if(d===1) return "1 min ago"; if(d<60) return d+" min ago";
+  const h=Math.round(d/60); if(h===1) return "1 hour ago"; if(h<24) return h+" hours ago";
+  const dd=Math.round(h/24); return dd===1?"1 day ago":dd+" days ago"; }
+function formatClockTime(t){ if(t==null) return "—"; return new Date(t).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}); }
+function clockTimeAfter(t,min){ if(t==null) return "—"; return formatClockTime(t+min*60000); }
+function formatDuration(min){ if(min<=0) return "0 min"; if(min<60) return min+" min"; const h=Math.floor(min/60),m=min%60; return m===0?h+" hr":h+" hr "+m+" min"; }
+function finalStop(stops){ return stops.reduce((a,b)=>a.order>b.order?a:b); }
+function nextStop(stops,cur){ return stops.filter(s=>s.order>cur).sort((a,b)=>a.order-b.order)[0]||null; }
+function calcETA(stops,cur,target,delay){ delay=delay||0; if(target<=cur) return 0;
+  return stops.filter(s=>s.order>cur && s.order<=target).reduce((s,x)=>s+x.avg,0) + Math.max(0,delay); }
+function progressPct(stops,cur){ if(stops.length<=1||cur<=0) return 0; const last=finalStop(stops).order; return Math.round(Math.min(cur,last)/last*100); }
+function timelineState(order,cur){ if(cur<=0) return order===1?"next":"upcoming"; if(order<cur) return "completed"; if(order===cur) return "current"; if(order===cur+1) return "next"; return "upcoming"; }
+function busFor(routeId){ return BUSES.find(b=>b.routeId===routeId)||null; }
+function noticesForRoute(routeId){ return NOTICES.filter(n=>n.routeId===routeId||n.routeId==="all"); }
+function routeLabel(routeId){ if(routeId==="all") return "All routes"; const r=ROUTES.find(x=>x.id===routeId); return r?r.startPoint+" → "+r.endPoint:"Route"; }
+
+const STATUS = {
+  active:      { label:"Active",      icon:"bus",         badge:"bg-success-50 text-success-700 ring-1 ring-success-100", dot:"bg-success-500", tint:"from-success-50 to-surface ring-success-100", iconBg:"bg-success-500", fill:"bg-success-500", hex:"#16a34a", soft:"bg-success-50 text-success-700", softBg:"bg-success-50", text:"text-success-700" },
+  delayed:     { label:"Delayed",     icon:"clock",       badge:"bg-warning-50 text-warning-700 ring-1 ring-warning-100", dot:"bg-warning-500", tint:"from-warning-50 to-surface ring-warning-100", iconBg:"bg-warning-500", fill:"bg-warning-500", hex:"#f59e0b", soft:"bg-warning-50 text-warning-700", softBg:"bg-warning-50", text:"text-warning-700" },
+  not_started: { label:"Not Started", icon:"clock",       badge:"bg-surface-muted text-ink-500 ring-1 ring-slate-300",     dot:"bg-ink-400",     tint:"from-surface-muted to-surface ring-slate-300", iconBg:"bg-ink-400",   fill:"bg-ink-400", hex:"#94a3b8", soft:"bg-surface-muted text-ink-500", softBg:"bg-surface-muted", text:"text-ink-500" },
+  completed:   { label:"Completed",   icon:"checkCircle", badge:"bg-brand-50 text-brand-700 ring-1 ring-brand-100",         dot:"bg-brand-500",   tint:"from-brand-50 to-surface ring-brand-100",     iconBg:"bg-brand-500", fill:"bg-brand-500", hex:"#356bff", soft:"bg-brand-50 text-brand-700", softBg:"bg-brand-50", text:"text-brand-700" },
+  cancelled:   { label:"Cancelled",   icon:"circleSlash", badge:"bg-danger-50 text-danger-700 ring-1 ring-danger-100",      dot:"bg-danger-500",  tint:"from-danger-50 to-surface ring-danger-100",   iconBg:"bg-danger-500", fill:"bg-danger-500", hex:"#ef4444", soft:"bg-danger-50 text-danger-700", softBg:"bg-danger-50", text:"text-danger-700" },
+  offline:     { label:"Offline",     icon:"wifiOff",     badge:"bg-surface-muted text-ink-500 ring-1 ring-slate-300",     dot:"bg-ink-400",     tint:"from-surface-muted to-surface ring-slate-300", iconBg:"bg-ink-400",   fill:"bg-ink-400", hex:"#94a3b8", soft:"bg-surface-muted text-ink-500", softBg:"bg-surface-muted", text:"text-ink-500" },
+};
+const NOTICE_CFG = {
+  normal:    { label:"Notice",    icon:"bus",           badge:"bg-brand-50 text-brand-700 ring-1 ring-brand-100",    card:"border-slate-300" },
+  delay:     { label:"Delay",     icon:"clock",         badge:"bg-warning-50 text-warning-700 ring-1 ring-warning-100", card:"border-warning-100 bg-warning-50/40" },
+  emergency: { label:"Emergency", icon:"alertTriangle", badge:"bg-danger-600 text-white",                             card:"border-danger-200 bg-danger-50/50" },
+  cancelled: { label:"Cancelled", icon:"circleSlash",   badge:"bg-danger-100 text-danger-700 ring-1 ring-danger-200", card:"border-danger-200 bg-danger-50/40" },
+};
+
+//=============================================================================
+// App state
+//=============================================================================
+const state = {
+  screen: "loading",       // loading | login | signup | home | routes | track
+  trackRouteId: null,
+  homeQuery: "",
+  routesQuery: "",
+  routesStatus: "all",
+  noticeFilter: "all",
+  selectedStops: {},       // routeId -> stopId
+  online: true,
+  sheetOpen: false,
+  sheetRouteId: null,
+  focusSearch: false,
+  showNotices: false,      // track screen: notices panel toggled by the bell
+};
+
+//=============================================================================
+// Shared UI pieces
+//=============================================================================
+function statusBadge(status, pulse){
+  const c = STATUS[status] || STATUS.offline;
+  const dot = '<span class="relative flex h-2 w-2">'
+    + (pulse ? '<span class="absolute inline-flex h-full w-full rounded-full opacity-75 animate-pulse-ring '+c.dot+'"></span>' : '')
+    + '<span class="relative inline-flex h-2 w-2 rounded-full '+c.dot+'"></span></span>';
+  return '<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-small font-semibold '+c.badge+'">'+dot+c.label+'</span>';
+}
+function offlineBanner(cls){
+  return '<div class="'+(cls||'')+' flex items-center gap-2.5 rounded-xl border border-warning-100 bg-warning-50 px-3.5 py-2.5 text-small text-warning-700">'
+    + '<span class="text-warning-600">'+ic('wifiOff','h-4 w-4')+'</span>'
+    + '<span><span class="font-semibold">You’re offline.</span> Showing the last saved updates.</span></div>';
+}
+function emptyState(icon,title,desc){
+  return '<div class="flex flex-col items-center justify-center rounded-2xl bg-surface px-6 py-12 text-center shadow-card ring-1 ring-slate-300">'
+    + '<span class="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-surface-muted text-ink-400">'+ic(icon,'h-6 w-6')+'</span>'
+    + '<p class="text-card-title text-ink-900">'+title+'</p>'
+    + '<p class="mt-1 max-w-xs text-body text-ink-500">'+desc+'</p></div>';
+}
+function searchInput(id, value, ph){
+  return '<div class="group relative">'
+    + '<span class="pointer-events-none absolute left-3.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-brand-50 text-brand-600">'+ic('search','h-4 w-4')+'</span>'
+    + '<input id="'+id+'" type="search" inputmode="search" value="'+value.replace(/"/g,'&quot;')+'" placeholder="'+ph+'" '
+    + 'class="h-[54px] w-full rounded-2xl bg-surface pl-14 pr-11 text-body font-medium text-ink-900 placeholder:font-normal placeholder:text-ink-400 shadow-card ring-1 ring-slate-300 transition focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500" />'
+    + (value ? '<button data-action="clear-search" data-target="'+id+'" aria-label="Clear" class="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-surface-muted text-ink-500 hover:bg-slate-200 hover:text-ink-700">'+ic('x','h-4 w-4')+'</button>' : '')
+    + '</div>';
+}
+function infoRow(icon,label,value,opts){
+  opts = opts||{};
+  const vc = opts.tone==="warning" ? "text-warning-700" : opts.strong ? "text-ink-900" : "text-ink-700";
+  return '<div class="flex items-center justify-between gap-2 text-small">'
+    + '<span class="flex items-center gap-1.5 text-ink-500"><span class="text-ink-400">'+ic(icon,'h-3.5 w-3.5')+'</span>'+label+'</span>'
+    + '<span class="font-medium '+vc+'">'+value+'</span></div>';
+}
+
+//=============================================================================
+// Bus card  (home + browse lists)
+//=============================================================================
+function miniStepper(stops,cur,status,c){
+  let html='<div class="flex items-center">';
+  stops.forEach((s,i)=>{
+    const reached = cur>0 && s.order<cur;
+    const isCur = cur>0 && s.order===cur;
+    const isNext = status!=="cancelled" && timelineState(s.order,cur)==="next";
+    let dot;
+    if(isCur){
+      dot='<span class="relative flex h-6 w-6 items-center justify-center rounded-full text-white shadow-sm" style="background:'+c.hex+'"><span class="absolute inline-flex h-full w-full rounded-full opacity-60 animate-pulse-ring" style="background:'+c.hex+'"></span><span class="relative">'+ic('bus','h-3.5 w-3.5')+'</span></span>';
+    } else if(reached){
+      dot='<span class="h-3.5 w-3.5 rounded-full ring-2 ring-white" style="background:'+c.hex+'"></span>';
+    } else if(isNext){
+      dot='<span class="h-3.5 w-3.5 rounded-full bg-warning-500 ring-2 ring-warning-100"></span>';
+    } else {
+      dot='<span class="h-3.5 w-3.5 rounded-full border-2 border-slate-400 bg-white"></span>';
+    }
+    html+=dot;
+    if(i<stops.length-1){
+      const filled = cur>0 && s.order<cur;
+      html+='<span class="mx-0.5 h-1 flex-1 rounded-full" style="background:'+(filled?c.hex:'#aeb9c8')+'"></span>';
+    }
+  });
+  return html+'</div>';
+}
+
+// Contextual notice indicator shown next to the status badge.
+function noticeBell(routeId, interactive){
+  const ns = noticesForRoute(routeId);
+  if(!ns.length) return "";
+  const urgent = ns.some(n=>n.priority==="emergency"||n.priority==="cancelled");
+  const tone = urgent ? "bg-danger-50 text-danger-700 ring-1 ring-danger-100" : "bg-warning-50 text-warning-700 ring-1 ring-warning-100";
+  const badgeBg = urgent ? "bg-danger-600" : "bg-warning-500";
+  const attr = interactive ? ' data-action="toggle-notices" role="button"' : ' aria-hidden="true"';
+  return '<span'+attr+' class="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl '+tone+(interactive?' cursor-pointer active:scale-95 transition':'')+'">'+ic('bell','h-4 w-4')
+    + '<span class="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full '+badgeBg+' px-1 text-[10px] font-bold text-white ring-2 ring-surface">'+ns.length+'</span></span>';
+}
+
+function routeCard(route){
+  const bus = busFor(route.id);
+  const status = bus ? bus.currentStatus : "offline";
+  const c = STATUS[status] || STATUS.offline;
+  const stops = [...route.stops].sort((a,b)=>a.order-b.order);
+  const fs = stops[stops.length-1];
+  const cur = bus ? bus.lastCheckpointOrder : 0;
+  const delay = bus ? bus.delayMinutes : 0;
+  const ns = nextStop(stops,cur);
+  const moving = status==="active"||status==="delayed";
+  const etaNext = (ns&&moving) ? calcETA(stops,cur,ns.order,delay) : null;
+  const etaDest = moving ? calcETA(stops,cur,fs.order,delay) : null;
+  const busName = bus ? bus.name : "Bus";
+  const cta = moving ? "Track this bus" : "View details";
+
+  // ---- highlighted band: where it is now / what's next ----
+  let band;
+  if(moving){
+    band = '<div class="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-xl '+c.softBg+' px-3 py-2.5">'
+      + '<div class="min-w-0"><p class="text-[10px] font-bold uppercase tracking-wide text-ink-900">Now at</p><p class="truncate text-body font-bold text-ink-900">'+(bus.lastCheckpointName||"—")+'</p></div>'
+      + '<span class="'+c.text+'">'+ic('arrowRight','h-5 w-5')+'</span>'
+      + '<div class="min-w-0 text-right"><p class="text-[10px] font-bold uppercase tracking-wide text-ink-900">Next stop'+(etaNext!=null?' · '+formatDuration(etaNext):'')+'</p><p class="truncate text-body font-bold text-ink-900">'+(ns?ns.name:"—")+'</p></div>'
+      + '</div>';
+  } else if(status==="not_started"){
+    band = '<div class="mt-3 flex items-center gap-2.5 rounded-xl bg-surface-muted/70 px-3 py-2.5"><span class="text-ink-700">'+ic('calendarClock','h-4 w-4')+'</span><p class="text-body text-ink-900">Departs <span class="font-bold text-ink-900">'+(route.scheduledStart||"—")+'</span> from '+route.startPoint+'</p></div>';
+  } else if(status==="cancelled"){
+    band = '<div class="mt-3 flex items-start gap-2.5 rounded-xl bg-danger-50 px-3 py-2.5"><span class="mt-0.5 text-danger-600">'+ic('circleSlash','h-4 w-4')+'</span><div><p class="text-body font-semibold text-ink-900">Cancelled today</p>'+(bus.issueMessage?'<p class="text-small text-ink-900">'+bus.issueMessage+'</p>':'')+'</div></div>';
+  } else if(status==="completed"){
+    band = '<div class="mt-3 flex items-center gap-2.5 rounded-xl bg-brand-50 px-3 py-2.5"><span class="text-brand-600">'+ic('checkCircle','h-4 w-4')+'</span><p class="text-body text-ink-900">Reached <span class="font-bold text-ink-900">'+route.endPoint+'</span> at '+formatClockTime(ms(bus.lastUpdatedMin))+'</p></div>';
+  } else {
+    band = '<div class="mt-3 rounded-xl bg-surface-muted/70 px-3 py-2.5 text-body text-ink-900">No recent updates.</div>';
+  }
+
+  // ---- stepper caption ----
+  let caption;
+  if(moving){
+    caption = '<div class="mt-2 flex items-center justify-between text-small"><span class="text-ink-900">Stop <span class="font-semibold text-ink-900">'+cur+'</span> of '+stops.length+'</span>'
+      + (etaDest!=null ? '<span class="font-semibold text-ink-900">Reaches '+fs.name+' ~'+formatDuration(etaDest)+'</span>' : '')+'</div>';
+  } else {
+    const txt = status==="not_started" ? stops.length+" stops · not started yet"
+      : status==="cancelled" ? "Trip cancelled" : status==="completed" ? "All "+stops.length+" stops completed" : stops.length+" stops";
+    caption = '<p class="mt-2 text-small text-ink-900">'+txt+'</p>';
+  }
+
+  return '<article class="rounded-2xl bg-surface p-4 shadow-card ring-1 ring-slate-300">'
+    + '<div class="flex items-center justify-between gap-3">'
+    +   '<div class="flex min-w-0 items-center gap-3">'
+    +     '<span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl '+c.soft+'">'+ic('bus','h-6 w-6')+'</span>'
+    +     '<div class="min-w-0"><h3 class="text-card-title font-bold text-ink-900">'+busName+'</h3>'
+    +       '<p class="mt-0.5 flex items-center gap-1 truncate text-small text-ink-900"><span class="font-medium text-ink-900">'+route.startPoint+'</span><span class="text-ink-700">'+ic('arrowRight','h-3 w-3')+'</span><span class="font-medium text-ink-900">'+route.endPoint+'</span></p></div>'
+    +   '</div>'
+    +   '<div class="flex shrink-0 items-center gap-2">'+noticeBell(route.id,false)+statusBadge(status, status==="active")+'</div>'
+    + '</div>'
+    + band
+    + '<div class="mt-3.5">'+miniStepper(stops,cur,status,c)+caption+'</div>'
+    + '<button data-action="track" data-route="'+route.id+'" class="mt-3.5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 text-body font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 active:bg-brand-800">'+cta+ic('arrowRight','h-4 w-4')+'</button>'
+    + '</article>';
+}
+
+function filterRoutes(query, statusList){
+  const q = query.trim().toLowerCase();
+  return ROUTES.filter(r=>{
+    const bus = busFor(r.id);
+    if(statusList && statusList.length){ const st = bus?bus.currentStatus:"offline"; if(!statusList.includes(st)) return false; }
+    if(!q) return true;
+    const hay = [r.name,r.startPoint,r.endPoint, bus?bus.name:"", ...r.stops.map(s=>s.name)].join(" ").toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+//=============================================================================
+// Quick stats
+//=============================================================================
+function quickStats(){
+  const active = BUSES.filter(b=>b.currentStatus==="active").length;
+  const delayed = BUSES.filter(b=>b.currentStatus==="delayed").length;
+  const cancelled = BUSES.filter(b=>b.currentStatus==="cancelled").length;
+  const stat = (label,val,icon,tone,status)=>'<button data-action="nav" data-nav="routes" data-status="'+status+'" class="flex flex-1 flex-col gap-2 rounded-2xl bg-surface p-3 text-left shadow-card ring-1 ring-slate-300 transition active:scale-[0.98]">'
+    + '<span class="flex h-8 w-8 items-center justify-center rounded-lg '+tone+'">'+ic(icon,'h-4 w-4')+'</span>'
+    + '<span class="text-2xl font-bold leading-none text-ink-900">'+val+'</span>'
+    + '<span class="text-small text-ink-500">'+label+'</span></button>';
+  return '<div class="flex gap-3">'
+    + stat("Active",active,"bus","bg-success-50 text-success-700","active")
+    + stat("Delayed",delayed,"clock","bg-warning-50 text-warning-700","delayed")
+    + stat("Cancelled",cancelled,"circleSlash","bg-danger-50 text-danger-700","cancelled")
+    + '</div>';
+}
+
+//=============================================================================
+// Notice card
+//=============================================================================
+function noticeCard(n){
+  const c = NOTICE_CFG[n.priority] || NOTICE_CFG.normal;
+  const badge = '<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-small font-semibold '+c.badge+'">'+ic(c.icon,'h-3.5 w-3.5')+c.label+'</span>';
+  return '<article class="animate-fade-in rounded-2xl border bg-surface p-4 shadow-card '+c.card+'">'
+    + '<div class="flex items-start justify-between gap-3">'+badge
+    +   '<span class="flex items-center gap-1 text-small text-ink-400">'+ic('clock','h-3.5 w-3.5')+formatRelativeTime(ms(n.createdMin))+'</span></div>'
+    + '<h3 class="mt-2.5 text-card-title text-ink-900">'+n.title+'</h3>'
+    + '<p class="mt-1 text-body text-ink-700">'+n.message+'</p>'
+    + '<div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-small text-ink-500"><span class="font-medium text-ink-700">'+routeLabel(n.routeId)+'</span>'
+    +   (n.expiresMin!=null ? '<span class="flex items-center gap-1">'+ic('calendarClock','h-3.5 w-3.5')+'Until '+formatClockTime(ms(n.expiresMin))+'</span>' : '')
+    + '</div></article>';
+}
+
+//=============================================================================
+// Track screen pieces
+//=============================================================================
+function currentStatusCard(route,bus){
+  const status = bus?bus.currentStatus:"offline";
+  const c = STATUS[status]||STATUS.offline;
+  const cur = bus?bus.lastCheckpointOrder:0, delay=bus?bus.delayMinutes:0;
+  const ns = nextStop(route.stops,cur);
+  const etaNext = ns ? calcETA(route.stops,cur,ns.order,delay) : null;
+
+  let headline, detail;
+  if(status==="active"||status==="delayed"){
+    headline = '<h2 class="text-section-title text-ink-900">Bus reached '+bus.lastCheckpointName+'</h2>';
+    detail = '<div class="mt-4 space-y-3"><p class="text-body text-ink-700">Updated at <span class="font-semibold text-ink-900">'+formatClockTime(ms(bus.lastUpdatedMin))+'</span> · '+formatRelativeTime(ms(bus.lastUpdatedMin))+'</p>'
+      + (ns ? '<div class="flex items-center justify-between rounded-xl bg-surface px-4 py-3 ring-1 ring-slate-300"><div class="flex items-center gap-2.5"><span class="text-warning-600">'+ic('arrowRight','h-5 w-5')+'</span><div><p class="text-small text-ink-500">Next stop</p><p class="text-card-title font-semibold text-ink-900">'+ns.name+'</p></div></div>'
+        + (etaNext!=null ? '<div class="text-right"><p class="text-small text-ink-500">Expected in</p><p class="text-card-title font-bold text-warning-700">'+formatDuration(etaNext)+'</p></div>' : '')
+        + '</div>' : '')
+      + '</div>';
+  } else if(status==="not_started"){
+    headline = '<h2 class="text-section-title text-ink-900">Trip not started yet</h2>';
+    detail = '<div class="mt-4 space-y-2"><p class="text-body text-ink-700">Please check again near the scheduled departure time.</p><p class="flex items-center gap-2 text-body font-medium text-ink-900"><span class="text-ink-400">'+ic('calendarClock','h-4 w-4')+'</span>Scheduled start: '+(route.scheduledStart||"—")+'</p></div>';
+  } else if(status==="cancelled"){
+    headline = '<h2 class="text-section-title text-danger-700">Trip cancelled</h2>';
+    detail = '<div class="mt-4 rounded-xl bg-danger-50 px-4 py-3 ring-1 ring-danger-100"><p class="text-body font-medium text-danger-700">Today’s trip has been cancelled.</p>'+(bus.issueMessage?'<p class="mt-0.5 text-small text-danger-600">Reason: '+bus.issueMessage+'</p>':'')+'</div>';
+  } else if(status==="completed"){
+    headline = '<h2 class="text-section-title text-brand-700">Trip completed</h2>';
+    detail = '<p class="mt-4 flex items-center gap-2 text-body text-ink-700"><span class="text-brand-500">'+ic('mapPin','h-4 w-4')+'</span>Bus reached '+route.endPoint+' at <span class="font-semibold text-ink-900">'+formatClockTime(ms(bus.lastUpdatedMin))+'</span>.</p>';
+  } else {
+    headline = '<h2 class="text-section-title text-ink-900">No recent updates</h2>';
+    detail = '<p class="mt-4 text-body text-ink-700">We haven’t received a recent update from this bus.</p>';
+  }
+  return '<section class="rounded-2xl bg-gradient-to-b p-5 shadow-card ring-1 '+c.tint+'">'
+    + '<div class="flex items-center gap-3"><span class="flex h-11 w-11 items-center justify-center rounded-xl text-white shadow-sm '+c.iconBg+'">'+ic(c.icon,'h-6 w-6')+'</span>'
+    + '<div><p class="text-small font-medium uppercase tracking-wide text-ink-500">Current bus status</p>'+headline+'</div></div>'
+    + detail + '</section>';
+}
+
+function selectedStopCard(route,bus){
+  const stopId = state.selectedStops[route.id] || null;
+  const sel = stopId ? route.stops.find(s=>s.id===stopId) : null;
+  if(!sel){
+    return '<div class="flex items-center justify-between gap-3 rounded-2xl border-2 border-dashed border-brand-200 bg-brand-50/40 p-4">'
+      + '<div class="flex items-center gap-3"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-100 text-brand-700">'+ic('mapPinned','h-5 w-5')+'</span><p class="text-body font-medium text-ink-900">Choose your stop for a personal ETA</p></div>'
+      + '<button data-action="open-sheet" data-route="'+route.id+'" class="inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-brand-600 px-4 text-body font-semibold text-white shadow-sm hover:bg-brand-700 active:bg-brand-800">Select Stop</button></div>';
+  }
+  const status = bus?bus.currentStatus:"offline";
+  const cur = bus?bus.lastCheckpointOrder:0, delay=bus?bus.delayMinutes:0;
+  const moving = status==="active"||status==="delayed";
+  const passed = moving && sel.order<=cur;
+  const eta = calcETA(route.stops,cur,sel.order,delay);
+  let etaBody;
+  if(passed){
+    etaBody = '<p class="mt-1 flex items-center gap-1.5 text-body font-medium text-success-700">'+ic('check','h-4 w-4')+'The bus has already passed this stop.</p>';
+  } else if(!moving){
+    etaBody = '<p class="mt-1 text-body text-ink-500">A personal arrival time will appear once the trip starts.</p>';
+  } else {
+    etaBody = '<div class="mt-3 flex items-stretch gap-3"><div class="flex-1 rounded-xl bg-surface-muted px-3 py-2.5"><p class="text-small text-ink-500">Expected arrival</p><p class="text-card-title font-bold text-ink-900">'+clockTimeAfter(ms(bus.lastUpdatedMin),eta)+'</p></div>'
+      + '<div class="flex-1 rounded-xl bg-brand-50 px-3 py-2.5"><p class="text-small text-brand-700/80">Time remaining</p><p class="flex items-center gap-1 text-card-title font-bold text-brand-700">'+formatDuration(eta)+ic('arrowRight','h-4 w-4')+'</p></div></div>';
+  }
+  return '<div class="overflow-hidden rounded-2xl bg-surface shadow-card ring-1 ring-brand-100">'
+    + '<div class="flex items-center justify-between bg-brand-600 px-4 py-2.5 text-white"><span class="flex items-center gap-2 text-small font-semibold uppercase tracking-wide">'+ic('mapPinned','h-4 w-4')+'Your stop</span>'
+    + '<button data-action="open-sheet" data-route="'+route.id+'" class="text-small font-medium text-white/90 underline-offset-2 hover:underline">Change</button></div>'
+    + '<div class="p-4"><p class="text-section-title text-ink-900">'+sel.name+'</p>'+etaBody+'</div></div>';
+}
+
+//-- Faux schematic map: route as a winding road with checkpoint nodes --------
+function smoothPath(p){
+  if(p.length<2) return p.length ? ("M "+p[0].x.toFixed(1)+" "+p[0].y.toFixed(1)) : "";
+  let d = "M "+p[0].x.toFixed(1)+" "+p[0].y.toFixed(1);
+  for(let i=0;i<p.length-1;i++){
+    const p0=p[i-1]||p[i], p1=p[i], p2=p[i+1], p3=p[i+2]||p2;
+    const c1x=p1.x+(p2.x-p0.x)/6, c1y=p1.y+(p2.y-p0.y)/6;
+    const c2x=p2.x-(p3.x-p1.x)/6, c2y=p2.y-(p3.y-p1.y)/6;
+    d += " C "+c1x.toFixed(1)+" "+c1y.toFixed(1)+" "+c2x.toFixed(1)+" "+c2y.toFixed(1)+" "+p2.x.toFixed(1)+" "+p2.y.toFixed(1);
+  }
+  return d;
+}
+function fauxMap(route,bus){
+  const stops=[...route.stops].sort((a,b)=>a.order-b.order);
+  const n=stops.length;
+  const status=bus?bus.currentStatus:"offline";
+  const c=STATUS[status]||STATUS.offline;
+  const cur=bus?bus.lastCheckpointOrder:0;
+  const delay=bus?bus.delayMinutes:0;
+  const moving=status==="active"||status==="delayed";
+  const fs=stops[n-1];
+  const destEta = moving ? calcETA(stops,cur,fs.order,delay) : null;
+  const pct=progressPct(stops,cur);
+
+  const W=320,H=214, mL=44,mR=44,mT=52,mB=50;
+  const midY=mT+(H-mT-mB)/2, amp=(H-mT-mB)/2*0.92;
+  const pts=stops.map((s,i)=>{ const t=n>1?i/(n-1):0.5; return { x:mL+t*(W-mL-mR), y:midY+amp*Math.sin(t*Math.PI*2.2), stop:s, order:s.order }; });
+
+  // City decoration (purely cosmetic, drawn behind the road)
+  let grid="";
+  for(let gx=0;gx<=W;gx+=32) grid+='<line x1="'+gx+'" y1="0" x2="'+gx+'" y2="'+H+'" stroke="#d4dce7" stroke-width="1"/>';
+  for(let gy=0;gy<=H;gy+=32) grid+='<line x1="0" y1="'+gy+'" x2="'+W+'" y2="'+gy+'" stroke="#d4dce7" stroke-width="1"/>';
+  const blocks='<rect x="16" y="18" width="50" height="34" rx="6" fill="#e4efe8"/><rect x="248" y="156" width="58" height="40" rx="6" fill="#e4efe8"/>'
+    +'<rect x="118" y="12" width="42" height="26" rx="5" fill="#e9eef5"/><rect x="206" y="28" width="48" height="30" rx="5" fill="#e9eef5"/>'
+    +'<rect x="18" y="150" width="52" height="36" rx="5" fill="#e9eef5"/><rect x="146" y="162" width="46" height="30" rx="5" fill="#e9eef5"/>';
+  const river='<path d="M-12 78 C 58 66, 92 116, 162 104 S 282 74, 342 100" stroke="#d7e6f3" stroke-width="13" fill="none" stroke-linecap="round" opacity="0.85"/>';
+
+  const fullD=smoothPath(pts);
+  const traveledD = cur>0 ? smoothPath(pts.slice(0, Math.min(cur,n))) : "";
+
+  let nodes="", chips="", marker="";
+  pts.forEach((p)=>{
+    const reached = cur>0 && p.order<cur;
+    const isCur = cur>0 && p.order===cur;
+    const isNext = timelineState(p.order,cur)==="next";
+    if(!isCur){
+      if(reached){
+        nodes+='<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="6" fill="'+c.hex+'" stroke="#fff" stroke-width="2.5"/>';
+      } else if(isNext){
+        nodes+='<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="7" fill="#f59e0b" opacity="0.3"><animate attributeName="r" values="7;13" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.4;0" dur="1.8s" repeatCount="indefinite"/></circle>'
+          +'<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="6" fill="#f59e0b" stroke="#fff" stroke-width="2.5"/>';
+      } else {
+        nodes+='<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="6" fill="#fff" stroke="#9aa7b8" stroke-width="2.5"/>';
+      }
+    }
+    // label chip
+    const name=p.stop.name;
+    const tw=Math.round(name.length*5.6+14), th=17;
+    let cx=p.x-tw/2; cx=Math.max(3,Math.min(cx,W-tw-3));
+    const below=p.y<midY; const cy = below ? p.y+11 : p.y-11-th;
+    let fill="#ffffff",stroke="#aeb9c8",txt="#334155";
+    if(isCur){ fill=c.hex; stroke=c.hex; txt="#ffffff"; }
+    else if(isNext){ fill="#fffbeb"; stroke="#fbbf24"; txt="#b45309"; }
+    chips+='<g><rect x="'+cx.toFixed(1)+'" y="'+cy.toFixed(1)+'" width="'+tw+'" height="'+th+'" rx="8" fill="'+fill+'" stroke="'+stroke+'" stroke-width="1"/>'
+      +'<text x="'+(cx+tw/2).toFixed(1)+'" y="'+(cy+12).toFixed(1)+'" text-anchor="middle" font-size="10" font-weight="600" fill="'+txt+'" font-family="Inter,sans-serif">'+name+'</text></g>';
+  });
+  if(cur>0){
+    const p=pts[Math.min(cur,n)-1];
+    marker='<g>'
+      +'<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="10" fill="'+c.hex+'" opacity="0.35"><animate attributeName="r" values="10;22" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.45;0" dur="1.8s" repeatCount="indefinite"/></circle>'
+      +'<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="12" fill="'+c.hex+'" stroke="#fff" stroke-width="2.5"/>'
+      +'<g transform="translate('+(p.x-7.2).toFixed(1)+','+(p.y-7.2).toFixed(1)+') scale(0.6)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+P.bus+'</g>'
+      +'</g>';
+  }
+
+  const svg='<svg viewBox="0 0 '+W+' '+H+'" class="block w-full" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Schematic route map">'
+    +'<defs><linearGradient id="mapbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3f6fb"/><stop offset="1" stop-color="#eaf1fc"/></linearGradient></defs>'
+    +'<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="url(#mapbg)"/>'
+    + grid + blocks + river
+    +'<path d="'+fullD+'" fill="none" stroke="#9aa7b8" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>'
+    + (traveledD ? '<path d="'+traveledD+'" fill="none" stroke="'+c.hex+'" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>' : '')
+    + nodes + chips + marker
+    +'</svg>';
+
+  const legend='<div class="flex items-center gap-3 text-[11px] text-ink-500">'
+    +'<span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-full" style="background:'+c.hex+'"></span>Reached</span>'
+    +'<span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-full bg-warning-500"></span>Next</span>'
+    +'<span class="flex items-center gap-1"><span class="inline-block h-2.5 w-2.5 rounded-full border-2 border-slate-400 bg-white"></span>Upcoming</span>'
+    +'</div>';
+
+  return '<div class="rounded-2xl bg-surface p-4 shadow-card ring-1 ring-slate-300">'
+    + '<div class="flex items-start justify-between gap-3">'
+    +   '<div><h2 class="text-section-title text-ink-900">Where\'s the bus</h2><p class="mt-0.5 flex items-center gap-1.5 text-small text-ink-500"><span class="text-brand-500">'+ic('mapPin','h-3.5 w-3.5')+'</span>Checkpoint-based · not live GPS</p></div>'
+    +   (destEta!=null ? '<div class="shrink-0 text-right"><p class="text-small text-ink-500">ETA to '+fs.name+'</p><p class="text-card-title font-bold '+(status==="delayed"?"text-warning-700":"text-ink-900")+'">'+formatDuration(destEta)+'</p></div>' : '')
+    + '</div>'
+    + '<div class="mt-3 overflow-hidden rounded-xl ring-1 ring-slate-300">'+svg+'</div>'
+    + '<div class="mt-3 flex items-center justify-between">'+legend+'<span class="text-small font-semibold text-ink-700">'+pct+'% complete</span></div>'
+    + '</div>';
+}
+
+function progressBar(route,bus){
+  const stops=[...route.stops].sort((a,b)=>a.order-b.order);
+  const cur=bus?bus.lastCheckpointOrder:0, status=bus?bus.currentStatus:"offline";
+  const c=STATUS[status]||STATUS.offline; const pct=progressPct(stops,cur);
+  const ticks = stops.map(s=>{
+    const reached = cur>=s.order && cur>0; const isCur = cur===s.order;
+    const cls = isCur ? c.dot+' ring-2 ring-white scale-110' : reached ? c.fill : 'bg-slate-300';
+    return '<span class="h-3 w-3 rounded-full border-2 border-white '+cls+'"></span>';
+  }).join("");
+  return '<div><div class="mb-2 flex items-center justify-between text-small"><span class="font-semibold text-ink-700">'+stops[0].name+'</span><span class="font-semibold text-ink-700">'+stops[stops.length-1].name+'</span></div>'
+    + '<div class="relative h-2 rounded-full bg-slate-200"><div class="absolute inset-y-0 left-0 rounded-full '+c.fill+'" style="width:'+pct+'%"></div>'
+    + '<div class="absolute inset-0 flex items-center justify-between px-0.5">'+ticks+'</div></div>'
+    + '<p class="mt-2 text-small text-ink-500">Progress: <span class="font-semibold text-ink-700">'+pct+'%</span></p></div>';
+}
+
+function buildTimeline(route,bus){
+  const stops=[...route.stops].sort((a,b)=>a.order-b.order);
+  const cur=bus?bus.lastCheckpointOrder:0, delay=bus?bus.delayMinutes:0;
+  const lastUpd = bus?ms(bus.lastUpdatedMin):null;
+  const hasProgress = cur>0 && (bus&&bus.currentStatus!=="cancelled");
+  const reached = REACHED[route.id]||{};
+  return stops.map(s=>{
+    const st = timelineState(s.order,cur);
+    if((st==="completed"||st==="current") && hasProgress){
+      const t = reached[s.order]!=null ? ms(reached[s.order]) : null;
+      return { stop:s, state:st, timeLabel: t!=null?formatClockTime(t):null };
+    }
+    if(hasProgress && lastUpd!=null){
+      const eta = calcETA(stops,cur,s.order,delay);
+      return { stop:s, state:st, timeLabel: clockTimeAfter(lastUpd,eta) };
+    }
+    return { stop:s, state:st, timeLabel:null };
+  });
+}
+
+function timelineNode(st){
+  if(st==="completed") return '<span class="flex h-5 w-5 items-center justify-center rounded-full bg-success-500 text-white">'+ic('check','h-3 w-3')+'</span>';
+  if(st==="current") return '<span class="relative flex h-6 w-6 items-center justify-center rounded-full bg-success-500 text-white shadow-sm"><span class="absolute inline-flex h-full w-full rounded-full bg-success-500 opacity-50 animate-pulse-ring"></span><span class="relative">'+ic('bus','h-3.5 w-3.5')+'</span></span>';
+  if(st==="next") return '<span class="relative flex h-5 w-5 items-center justify-center rounded-full bg-warning-100"><span class="absolute inline-flex h-2.5 w-2.5 rounded-full bg-warning-500 opacity-60 animate-pulse-ring"></span><span class="relative h-2.5 w-2.5 rounded-full bg-warning-500"></span></span>';
+  return '<span class="flex h-5 w-5 items-center justify-center rounded-full border-2 border-slate-400 bg-white"></span>';
+}
+function timelineTag(st,isSel){
+  let t="";
+  if(st==="current") t+='<span class="rounded-full bg-success-50 px-2 py-0.5 text-[11px] font-semibold text-success-700 ring-1 ring-success-100">Last reached</span>';
+  if(st==="next") t+='<span class="rounded-full bg-warning-50 px-2 py-0.5 text-[11px] font-semibold text-warning-700 ring-1 ring-warning-100">Next stop</span>';
+  if(isSel) t+='<span class="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700 ring-1 ring-brand-100">Your stop</span>';
+  return t ? '<span class="flex items-center gap-1.5">'+t+'</span>' : '';
+}
+function routeTimeline(route,bus){
+  const items = buildTimeline(route,bus);
+  const selId = state.selectedStops[route.id]||null;
+  // Connector is an in-flow flex child (no transform / absolute / z-index) so it
+  // paints in the main layer — transformed line layers were going stale on some GPUs.
+  return '<ol class="mt-1">'+items.map((it,i)=>{
+    const last = i===items.length-1;
+    const traveled = it.state==="completed"; // leg to the next stop already covered
+    const lineColor = traveled ? '#16a34a' : '#9aa7b8';
+    const lineW = traveled ? '3px' : '2px'; // thinner until the leg is covered
+    const isSel = it.stop.id===selId;
+    const prefix = (it.state==="completed"||it.state==="current") ? "Reached" : "Expected";
+    const nameCls = it.state==="upcoming" ? "text-ink-500" : "font-semibold text-ink-900";
+    const timeCls = it.state==="current" ? "font-medium text-success-700" : it.state==="next" ? "font-medium text-warning-700" : "text-ink-500";
+    return '<li class="flex gap-3.5">'
+      + '<div class="flex w-6 shrink-0 flex-col items-center">'
+      +   timelineNode(it.state)
+      +   (!last ? '<span class="grow rounded-full" style="width:'+lineW+';min-height:20px;background:'+lineColor+'"></span>' : '')
+      + '</div>'
+      + '<div class="flex min-w-0 flex-1 items-start justify-between gap-3 '+(last?'pb-1':'pb-6')+'"><div class="min-w-0">'
+      +   '<div class="flex flex-wrap items-center gap-2"><span class="text-body '+nameCls+'">'+it.stop.name+'</span>'+timelineTag(it.state,isSel)+'</div>'
+      +   (it.timeLabel ? '<p class="mt-0.5 text-small '+timeCls+'">'+prefix+' '+it.timeLabel+'</p>' : '<p class="mt-0.5 text-small text-ink-400">Scheduled stop</p>')
+      + '</div></div></li>';
+  }).join("")+'</ol>';
+}
+function alertBanner(tone,icon,title,body){
+  const map = { warning:"border-warning-100 bg-warning-50 text-warning-700", danger:"border-danger-200 bg-danger-50 text-danger-700" };
+  return '<div class="rounded-xl border px-3.5 py-3 '+map[tone]+'"><div class="flex items-start gap-2.5"><span class="mt-0.5 shrink-0">'+ic(icon,'h-4 w-4')+'</span>'
+    + '<div><p class="text-small font-semibold">'+title+'</p><p class="mt-0.5 text-small opacity-90">'+body+'</p></div></div></div>';
+}
+function liveIndicator(bus,live){
+  const last = bus?ms(bus.lastUpdatedMin):null;
+  const dot = '<span class="relative flex h-2 w-2">'+(live?'<span class="absolute inline-flex h-full w-full animate-pulse-ring rounded-full bg-success-500 opacity-75"></span>':'')+'<span class="relative inline-flex h-2 w-2 rounded-full '+(live?'bg-success-500':'bg-ink-400')+'"></span></span>';
+  const text = live ? '<span>Live updates enabled · synced '+formatRelativeTime(last)+'</span>' : '<span class="flex items-center gap-1">'+ic('radio','h-3.5 w-3.5')+'Showing last saved update</span>';
+  return '<div class="flex items-center justify-center gap-2 pt-2 text-small text-ink-500">'+dot+text+'</div>';
+}
+
+//=============================================================================
+// Headers + nav
+//=============================================================================
+function studentHeader(action){
+  const account = '<button data-action="logout" aria-label="Account / log out" class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface text-ink-700 ring-1 ring-slate-300 hover:bg-surface-muted active:scale-95 transition">'+ic('user','h-5 w-5')+'</button>';
+  return '<header class="border-b border-slate-300 bg-surface-page">'
+    + '<div class="flex items-center justify-between px-4 py-3">'
+    + '<button data-action="nav" data-nav="home" class="flex items-center gap-2.5 text-left">'
+    +   '<span class="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm">'+ic('bus','h-5 w-5')+'</span>'
+    +   '<span class="text-lg font-bold text-ink-900">BusTrack</span>'
+    + '</button>'+(action||account)+'</div></header>';
+}
+function bellAction(count){
+  return '<button data-action="nav" data-nav="notices" class="relative flex h-10 w-10 items-center justify-center rounded-xl bg-surface text-ink-700 ring-1 ring-slate-300 hover:bg-surface-muted">'+ic('bell','h-5 w-5')
+    + (count>0 ? '<span class="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-warning-500 px-1 text-[11px] font-bold text-white ring-2 ring-surface-page">'+count+'</span>' : '')+'</button>';
+}
+function backHeader(title,subtitle,action){
+  return '<header class="border-b border-slate-300 bg-surface-page"><div class="flex items-center gap-3 px-3 py-3">'
+    + '<button data-action="back" aria-label="Go back" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface text-ink-700 ring-1 ring-slate-300 hover:bg-surface-muted active:scale-95 transition">'+ic('chevronLeft','h-5 w-5')+'</button>'
+    + '<div class="min-w-0 flex-1"><div class="truncate text-card-title font-bold text-ink-900">'+title+'</div>'+(subtitle?'<div class="truncate text-small text-ink-500">'+subtitle+'</div>':'')+'</div>'
+    + (action?'<div class="shrink-0">'+action+'</div>':'')+'</div></header>';
+}
+function bottomNav(){
+  const items = [
+    { label:"Home", nav:"home", icon:"home", active: state.screen==="home"||state.screen==="track" },
+    { label:"All buses", nav:"routes", icon:"bus", active: state.screen==="routes" },
+  ];
+  return '<nav class="border-t border-slate-300 bg-surface px-2 pb-2 shadow-nav"><ul class="flex items-stretch justify-around">'
+    + items.map(it=>'<li class="flex-1"><button data-action="nav" data-nav="'+it.nav+'" class="flex h-16 w-full flex-col items-center justify-center gap-1 rounded-xl text-small font-medium transition-colors '+(it.active?'text-brand-700':'text-ink-400 hover:text-ink-700')+'">'+ic(it.icon,'h-6 w-6')+it.label+'</button></li>').join("")
+    + '</ul></nav>';
+}
+function statusBar(){
+  const t = new Date().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}).replace(/\s?[AP]M/,"");
+  const bars = '<span class="flex items-end gap-0.5">'
+    + '<span class="h-2 w-1 rounded-sm bg-ink-900"></span><span class="h-2.5 w-1 rounded-sm bg-ink-900"></span><span class="h-3 w-1 rounded-sm bg-ink-900"></span><span class="h-3.5 w-1 rounded-sm bg-ink-900"></span></span>';
+  const wifi = state.online
+    ? '<svg class="h-3.5 w-4" viewBox="0 0 24 18" fill="none" stroke="#0f172a" stroke-width="2.2" stroke-linecap="round"><path d="M3 6.5a14 14 0 0 1 18 0"/><path d="M6.5 10a9 9 0 0 1 11 0"/><path d="M10 13.5a4 4 0 0 1 4 0"/></svg>'
+    : '<span class="text-ink-400">'+ic('wifiOff','h-3.5 w-4')+'</span>';
+  const battery = '<span class="flex items-center gap-0.5"><span class="relative h-3.5 w-6 rounded-[3px] border-[1.5px] border-ink-900"><span class="absolute inset-[1.5px] right-1.5 rounded-[1px] bg-ink-900"></span></span><span class="h-1.5 w-0.5 rounded-r bg-ink-900"></span></span>';
+  return '<div class="flex h-12 shrink-0 items-center justify-between px-7 pt-1 text-ink-900"><span class="text-sm font-semibold">'+t+'</span><span class="flex items-center gap-1.5">'+bars+wifi+battery+'</span></div>';
+}
+
+//=============================================================================
+// Screen renderers
+//=============================================================================
+function screenHome(){
+  const list = filterRoutes(state.homeQuery, []);
+  let routes;
+  if(list.length===0){
+    routes = emptyState(state.homeQuery?"searchX":"bus", state.homeQuery?"No buses found.":"No active buses right now.", state.homeQuery?"Try a different bus, stop, or area.":"Check back closer to your departure time.");
+  } else {
+    routes = '<ul class="space-y-3">'+list.map(r=>'<li>'+routeCard(r)+'</li>').join("")+'</ul>';
+  }
+  const main = '<section class="mb-4"><h1 class="text-page-title text-ink-900">Find your bus</h1><p class="mt-1 text-body text-ink-500">See where your bus is now and when it reaches you.</p></section>'
+    + (!state.online?offlineBanner("mb-4"):"")
+    + '<div class="mb-4">'+searchInput("search",state.homeQuery,"Search by bus, stop, or area")+'</div>'
+    + '<div class="mb-5">'+quickStats()+'</div>'
+    + '<div class="mb-2.5 flex items-center justify-between"><h2 class="text-section-title text-ink-900">Live buses</h2><button data-action="nav" data-nav="routes" class="text-small font-semibold text-brand-700 hover:underline">See all</button></div>'
+    + routes;
+  return { header: studentHeader(), main, nav:true };
+}
+
+function screenRoutes(){
+  const CHIPS = [["all","All"],["active","Active"],["delayed","Delayed"],["not_started","Not Started"],["cancelled","Cancelled"],["completed","Completed"]];
+  const list = filterRoutes(state.routesQuery, state.routesStatus==="all"?[]:[state.routesStatus]);
+  const chips = '<div class="no-scrollbar -mx-4 mb-4 flex gap-2 overflow-x-auto px-4">'
+    + CHIPS.map(([k,l])=>{ const a=state.routesStatus===k; return '<button data-action="chip" data-chip="'+k+'" class="shrink-0 rounded-full px-4 py-2 text-small font-semibold transition '+(a?'bg-brand-600 text-white shadow-sm':'bg-surface text-ink-600 ring-1 ring-slate-300 hover:bg-surface-muted')+'">'+l+'</button>'; }).join("")
+    + '</div>';
+  let routes;
+  if(list.length===0){
+    const f = state.routesQuery||state.routesStatus!=="all";
+    routes = emptyState(f?"searchX":"bus", f?"No buses found.":"No buses available.", f?"Try clearing your search or status filter.":"Buses will appear here once they're added.");
+  } else {
+    routes = '<ul class="space-y-3">'+list.map(r=>'<li>'+routeCard(r)+'</li>').join("")+'</ul>';
+  }
+  const main = '<section class="mb-4"><h1 class="text-page-title text-ink-900">All buses</h1><p class="mt-1 text-body text-ink-500">Browse every bus and track the one you need.</p></section>'
+    + (!state.online?offlineBanner("mb-4"):"")
+    + '<div class="mb-3">'+searchInput("search",state.routesQuery,"Search by bus, stop, or area")+'</div>'
+    + chips + routes;
+  return { header: studentHeader(), main, nav:true };
+}
+
+function screenNotices(){
+  const TABS = [["all","All"],["delay","Delays"],["emergency","Emergency"],["cancelled","Cancelled"]];
+  const countFor = k => k==="all"?NOTICES.length:NOTICES.filter(n=>n.priority===k).length;
+  const filtered = state.noticeFilter==="all"?NOTICES:NOTICES.filter(n=>n.priority===state.noticeFilter);
+  const tabs = '<div class="no-scrollbar -mx-4 mb-4 flex gap-2 overflow-x-auto px-4">'
+    + TABS.map(([k,l])=>{ const a=state.noticeFilter===k; const cnt=countFor(k);
+      return '<button data-action="filter" data-filter="'+k+'" class="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-small font-semibold transition '+(a?'bg-brand-600 text-white shadow-sm':'bg-surface text-ink-600 ring-1 ring-slate-300 hover:bg-surface-muted')+'">'+l+'<span class="rounded-full px-1.5 text-[11px] '+(a?'bg-white/20':'bg-surface-muted text-ink-500')+'">'+cnt+'</span></button>'; }).join("")
+    + '</div>';
+  let body;
+  if(filtered.length===0){
+    body = emptyState("bellOff","No notices available.", state.noticeFilter==="all"?"You're all caught up — there are no active notices right now.":"There are no notices in this category.");
+  } else {
+    body = '<div class="space-y-3">'+filtered.map(noticeCard).join("")+'</div>';
+  }
+  const main = '<section class="mb-4"><h1 class="text-page-title text-ink-900">Notices</h1><p class="mt-1 text-body text-ink-500">Delays, cancellations and service updates for your routes.</p></section>'
+    + (!state.online?offlineBanner("mb-4"):"") + tabs + body;
+  return { header: studentHeader(), main, nav:true };
+}
+
+//=============================================================================
+// Auth flow: loading splash -> login -> signup
+//=============================================================================
+function authField(icon,type,ph,right){
+  return '<div class="relative"><span class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400">'+ic(icon,'h-5 w-5')+'</span>'
+    + '<input type="'+type+'" placeholder="'+ph+'" class="h-[52px] w-full rounded-2xl bg-surface '+(right?'pr-11':'pr-4')+' pl-11 text-body text-ink-900 placeholder:text-ink-400 shadow-sm ring-1 ring-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500" />'
+    + (right||'') + '</div>';
+}
+const pwEye = '<button data-action="toggle-pw" tabindex="-1" aria-label="Show password" class="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-700">'+ic('eye','h-5 w-5')+'</button>';
+const googleG = '<span class="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[13px] font-bold text-brand-600 ring-1 ring-slate-300">G</span>';
+
+function screenLoading(){
+  const main = '<div class="relative flex h-full flex-col items-center justify-center bg-brand-600 px-8 text-center">'
+    + '<div class="flex h-24 w-24 items-center justify-center rounded-[26px] bg-white text-brand-600 shadow-[0_12px_40px_rgba(0,0,0,0.25)]">'+ic('bus','h-12 w-12')+'</div>'
+    + '<h1 class="mt-7 text-[2rem] font-extrabold tracking-tight text-white">BusTrack</h1>'
+    + '<p class="mt-2 text-body font-medium text-white/85">Know exactly where your bus is.</p>'
+    + '<div class="mt-9 flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-white"></span><span class="h-2.5 w-2.5 rounded-full bg-white/55"></span><span class="h-2.5 w-2.5 rounded-full bg-white/30"></span></div>'
+    + '<div class="absolute inset-x-0 bottom-8 flex flex-col items-center gap-1"><span class="text-small font-semibold text-white/80">University Bus Service</span><span class="text-[11px] text-white/55">v1.0</span></div>'
+    + '</div>';
+  return { bare:true, noStatusBar:true, main };
+}
+
+function screenLogin(){
+  const main = '<div class="flex h-full flex-col px-6 pt-10 pb-8">'
+    + '<div class="flex items-center gap-2.5"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm">'+ic('bus','h-5 w-5')+'</span><span class="text-card-title font-bold text-ink-900">BusTrack</span></div>'
+    + '<div class="mt-8"><h1 class="text-page-title text-ink-900">Welcome back</h1><p class="mt-1 text-body text-ink-500">Log in to track your university bus in real time.</p></div>'
+    + '<div class="mt-7 space-y-3">'+authField("mail","email","Student email or ID")+authField("lock","password","Password",pwEye)+'</div>'
+    + '<button data-action="auth-login" class="mt-2 self-end text-small font-semibold text-brand-700">Forgot password?</button>'
+    + '<button data-action="auth-login" class="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 text-body font-semibold text-white shadow-sm hover:bg-brand-700 active:bg-brand-800">Log in'+ic('arrowRight','h-4 w-4')+'</button>'
+    + '<div class="my-6 flex items-center gap-3 text-small text-ink-400"><span class="h-px flex-1 bg-slate-200"></span>or<span class="h-px flex-1 bg-slate-200"></span></div>'
+    + '<button data-action="auth-login" class="inline-flex h-12 w-full items-center justify-center gap-2.5 rounded-xl bg-surface text-body font-semibold text-ink-900 ring-1 ring-slate-300 hover:bg-surface-muted active:scale-[0.99] transition">'+googleG+'Continue with Google</button>'
+    + '<p class="mt-auto pt-8 text-center text-small text-ink-500">New to BusTrack? <button data-action="go-signup" class="font-semibold text-brand-700">Create an account</button></p>'
+    + '</div>';
+  return { bare:true, main };
+}
+
+function screenSignup(){
+  const main = '<div class="flex h-full flex-col px-6 pt-6 pb-8">'
+    + '<button data-action="go-login" aria-label="Back" class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface text-ink-700 ring-1 ring-slate-300 hover:bg-surface-muted active:scale-95 transition">'+ic('chevronLeft','h-5 w-5')+'</button>'
+    + '<div class="mt-6"><h1 class="text-page-title text-ink-900">Create your account</h1><p class="mt-1 text-body text-ink-500">Join to follow your campus buses live.</p></div>'
+    + '<div class="mt-7 space-y-3">'+authField("user","text","Full name")+authField("mail","email","Student email")+authField("lock","password","Create a password",pwEye)+'</div>'
+    + '<p class="mt-3 text-small text-ink-400">By continuing you agree to BusTrack\'s Terms and Privacy Policy.</p>'
+    + '<button data-action="auth-signup" class="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-600 text-body font-semibold text-white shadow-sm hover:bg-brand-700 active:bg-brand-800">Create account'+ic('arrowRight','h-4 w-4')+'</button>'
+    + '<p class="mt-auto pt-8 text-center text-small text-ink-500">Already have an account? <button data-action="go-login" class="font-semibold text-brand-700">Log in</button></p>'
+    + '</div>';
+  return { bare:true, main };
+}
+
+function screenTrack(){
+  const route = ROUTES.find(r=>r.id===state.trackRouteId);
+  const bus = busFor(route.id);
+  const status = bus?bus.currentStatus:"offline";
+  const delay=bus?bus.delayMinutes:0;
+  const moving = status==="active"||status==="delayed";
+  const notices = noticesForRoute(route.id);
+  const busName = bus?bus.name:"Bus";
+
+  // Notices are contextual now: revealed via the bell next to the status badge.
+  const noticePanel = (state.showNotices && notices.length)
+    ? '<div class="animate-fade-in space-y-3 rounded-2xl border border-warning-100 bg-warning-50/50 p-3">'
+      + '<div class="flex items-center justify-between"><h2 class="flex items-center gap-1.5 text-card-title text-ink-900"><span class="text-warning-600">'+ic('bell','h-4 w-4')+'</span>Notices for this bus</h2><button data-action="toggle-notices" class="rounded-full p-1 text-ink-400 hover:bg-warning-100">'+ic('x','h-4 w-4')+'</button></div>'
+      + notices.map(noticeCard).join("") + '</div>'
+    : "";
+
+  const main = '<div class="space-y-3">'
+    + (!state.online?offlineBanner(""):"")
+    + (status==="delayed"?alertBanner("warning","clock","Running ~"+delay+" min late", bus.issueMessage||"The driver reported a delay."):"")
+    + (status==="cancelled"?alertBanner("danger","circleSlash","This trip is cancelled", bus.issueMessage?"Reason: "+bus.issueMessage+".":"Today's trip has been cancelled."):"")
+    + noticePanel
+    + fauxMap(route,bus)
+    + currentStatusCard(route,bus)
+    + '<div class="flex items-start gap-2 rounded-xl bg-surface px-3.5 py-2.5 ring-1 ring-slate-300"><span class="mt-0.5 shrink-0 text-brand-500">'+ic('info','h-4 w-4')+'</span><p class="text-small text-ink-500"><span class="font-semibold text-ink-700">Checkpoint-based.</span> The bus position is taken from the last stop the driver confirmed'+(bus&&bus.lastUpdatedMin!=null?' ('+formatRelativeTime(ms(bus.lastUpdatedMin))+').':'.')+'</p></div>'
+    + '<div class="rounded-2xl bg-surface p-4 shadow-card ring-1 ring-slate-300"><h2 class="mb-1 text-section-title text-ink-900">All stops</h2><p class="mb-3 text-small text-ink-500">'+route.stops.length+' stops · '+route.startPoint+' to '+route.endPoint+'</p>'+routeTimeline(route,bus)+'</div>'
+    + liveIndicator(bus, state.online&&moving)
+    + '</div>';
+
+  const headerAction = '<div class="flex items-center gap-2">'+noticeBell(route.id,true)+statusBadge(status,status==="active")+'</div>';
+  return { header: backHeader(busName, route.startPoint+" → "+route.endPoint, headerAction), main, nav:true };
+}
+
+//=============================================================================
+// Stop-picker bottom sheet
+//=============================================================================
+function stopSheet(){
+  if(!state.sheetOpen) return "";
+  const route = ROUTES.find(r=>r.id===state.sheetRouteId);
+  const bus = busFor(route.id);
+  const cur = bus?bus.lastCheckpointOrder:0;
+  const selId = state.selectedStops[route.id]||null;
+  const rows = [...route.stops].sort((a,b)=>a.order-b.order).map(s=>{
+    const passed = cur>0 && s.order<=cur;
+    const isSel = s.id===selId;
+    return '<button data-action="pick-stop" data-route="'+route.id+'" data-stop="'+s.id+'" class="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-left ring-1 transition '+(isSel?'bg-brand-50 ring-brand-200':'bg-surface ring-slate-300 hover:bg-surface-muted')+'">'
+      + '<span class="flex items-center gap-3"><span class="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold '+(passed?'bg-success-500 text-white':isSel?'bg-brand-600 text-white':'bg-surface-muted text-ink-500')+'">'+s.order+'</span><span class="text-body font-medium '+(isSel?'text-brand-700':'text-ink-900')+'">'+s.name+'</span></span>'
+      + (passed?'<span class="text-small text-success-700">Passed</span>':isSel?'<span class="text-brand-600">'+ic('check','h-4 w-4')+'</span>':'')+'</button>';
+  }).join("");
+  return '<div class="absolute inset-0 z-40 flex flex-col justify-end">'
+    + '<div data-action="close-sheet" class="absolute inset-0 bg-ink-900/40"></div>'
+    + '<div class="animate-sheet-up relative rounded-t-3xl bg-surface-page p-4 pb-6 shadow-[0_-8px_40px_rgba(15,23,42,.25)]">'
+    +   '<div class="mx-auto mb-3 h-1.5 w-10 rounded-full bg-slate-300"></div>'
+    +   '<div class="mb-3 flex items-center justify-between"><h3 class="text-section-title text-ink-900">Select your stop</h3><button data-action="close-sheet" class="rounded-full p-1 text-ink-400 hover:bg-surface-muted">'+ic('x','h-5 w-5')+'</button></div>'
+    +   '<p class="mb-3 text-small text-ink-500">'+route.name+' · '+route.startPoint+' → '+route.endPoint+'</p>'
+    +   '<div class="no-scrollbar max-h-72 space-y-2 overflow-y-auto">'+rows+'</div>'
+    + '</div></div>';
+}
+
+//=============================================================================
+// Render + events
+//=============================================================================
+const device = document.getElementById("device");
+
+// ---- URL routing: each screen gets its own #name so the URL reads like a page ----
+let suppressHash = false;
+function hashFor(){
+  switch(state.screen){
+    case "home":   return "#home";
+    case "routes": return "#buses";
+    case "track":  return state.trackRouteId ? "#track/"+state.trackRouteId+(state.showNotices?"/notices":"") : "#track";
+    case "login":  return "#login";
+    case "signup": return "#signup";
+    default:       return ""; // loading / transient — leave URL clean
+  }
+}
+function titleFor(){
+  switch(state.screen){
+    case "home":   return "Home · BusTrack";
+    case "routes": return "All buses · BusTrack";
+    case "track":  { const b=busFor(state.trackRouteId); const n=b?b.name:"Track"; return (state.showNotices?"Notices · "+n:n)+" · BusTrack"; }
+    case "login":  return "Log in · BusTrack";
+    case "signup": return "Sign up · BusTrack";
+    default:       return "BusTrack";
+  }
+}
+function parseHash(h){
+  h = (h||"").replace(/^#\/?/, "");
+  if(!h) return null;
+  if(h.indexOf("track/")===0){
+    let rest = h.slice(6), notices = false;
+    if(rest.indexOf("/notices")>=0){ notices = true; rest = rest.replace("/notices",""); }
+    return { screen:"track", routeId:rest, showNotices:notices };
+  }
+  const map = { home:"home", buses:"routes", login:"login", signup:"signup" };
+  return map[h] ? { screen:map[h] } : null;
+}
+function syncHash(){
+  const h = hashFor();
+  if(!h) return;
+  if(location.hash !== h){ suppressHash = true; location.hash = h; }
+  document.title = titleFor();
+}
+window.addEventListener("hashchange", ()=>{
+  if(suppressHash){ suppressHash = false; return; }
+  const p = parseHash(location.hash);
+  if(p){ state.screen = p.screen; if(p.routeId) state.trackRouteId = p.routeId; state.showNotices = !!p.showNotices; scrollReset(); render(); }
+});
+
+function render(){
+  let s;
+  if(state.screen==="loading") s=screenLoading();
+  else if(state.screen==="login") s=screenLogin();
+  else if(state.screen==="signup") s=screenSignup();
+  else if(state.screen==="routes") s=screenRoutes();
+  else if(state.screen==="track") s=screenTrack();
+  else s=screenHome();
+
+  if(s.bare){
+    device.innerHTML = (s.noStatusBar?"":statusBar())
+      + '<div class="flex-1 overflow-y-auto">'+s.main+'</div>';
+  } else {
+    device.innerHTML = statusBar() + s.header
+      + '<main id="main" class="flex-1 overflow-y-auto px-4 pt-4 pb-6">'+s.main+'</main>'
+      + (s.nav?bottomNav():"")
+      + stopSheet();
+  }
+
+  if(state.focusSearch){
+    const el = device.querySelector("#search");
+    if(el){ el.focus(); const v=el.value; el.value=""; el.value=v; }
+    state.focusSearch = false;
+  }
+
+  syncHash(); // keep the URL + tab title in sync with the current screen
+}
+
+document.body.addEventListener("click",(e)=>{
+  const t = e.target.closest("[data-action]");
+  if(!t) return;
+  const a = t.getAttribute("data-action");
+  if(a==="nav"){ const st=t.getAttribute("data-status"); if(st!=null) state.routesStatus=st; state.screen=t.getAttribute("data-nav"); state.showNotices=false; scrollReset(); render(); }
+  else if(a==="track"){ state.screen="track"; state.trackRouteId=t.getAttribute("data-route"); state.showNotices=false; scrollReset(); render(); }
+  else if(a==="back"){ state.screen="home"; state.showNotices=false; scrollReset(); render(); }
+  else if(a==="chip"){ state.routesStatus=t.getAttribute("data-chip"); render(); }
+  else if(a==="filter"){ state.noticeFilter=t.getAttribute("data-filter"); render(); }
+  else if(a==="toggle-notices"){ state.showNotices=!state.showNotices; render(); }
+  else if(a==="toggle-pw"){ const inp=t.parentElement.querySelector("input"); if(inp) inp.type = inp.type==="password"?"text":"password"; }
+  else if(a==="go-login"){ state.screen="login"; scrollReset(); render(); }
+  else if(a==="go-signup"){ state.screen="signup"; scrollReset(); render(); }
+  else if(a==="auth-login"||a==="auth-signup"){ state.screen="home"; scrollReset(); render(); }
+  else if(a==="logout"){ state.screen="login"; scrollReset(); render(); }
+  else if(a==="clear-search"){ const id=t.getAttribute("data-target"); if(id==="search"){ if(state.screen==="routes") state.routesQuery=""; else state.homeQuery=""; state.focusSearch=true; render(); } }
+  else if(a==="open-sheet"){ state.sheetOpen=true; state.sheetRouteId=t.getAttribute("data-route"); render(); }
+  else if(a==="close-sheet"){ state.sheetOpen=false; render(); }
+  else if(a==="pick-stop"){ state.selectedStops[t.getAttribute("data-route")]=t.getAttribute("data-stop"); state.sheetOpen=false; render(); }
+  else if(a==="toggle-online"){ state.online=!state.online; document.getElementById("offlineToggle").textContent = state.online?"Simulate going offline":"Back online"; render(); }
+});
+document.body.addEventListener("input",(e)=>{
+  if(e.target.id==="search"){
+    if(state.screen==="routes") state.routesQuery=e.target.value; else state.homeQuery=e.target.value;
+    state.focusSearch=true; render();
+  }
+});
+function scrollReset(){ const m=document.getElementById("main"); if(m) m.scrollTop=0; }
+
+// Honor a deep-link hash (e.g. opening/refreshing on #home or #track/route-1);
+// otherwise start at the splash and auto-advance to login.
+const boot = parseHash(location.hash);
+if(boot){ state.screen = boot.screen; if(boot.routeId) state.trackRouteId = boot.routeId; state.showNotices = !!boot.showNotices; }
+render();
+if(state.screen==="loading"){
+  setTimeout(()=>{ if(state.screen==="loading"){ state.screen="login"; render(); } }, 1800);
+}
+</script>
+</body>
+</html>
